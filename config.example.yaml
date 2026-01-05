@@ -1,0 +1,38 @@
+feishu:
+  title: "每日论文推送"
+  webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook"         # feishu robot webhook url
+  header_template: "blue"  # Optional: blue, wathet, turquoise, green, yellow, orange, red, carmine；if #DAE3FA is filled, it will be automatically mapped to wathet
+
+arxiv:
+  query: "cs.AI+cs.RO+cs.LG+cs.CL+cs.CV
+  max_results: 250                # max number of arXiv papers to fetch
+  only_new: true                  # true: only fetch papers from the last days (days_back)
+  days_back: 1                    # number of days to fetch arXiv papers from
+
+zotero:
+  library_id: "1234567"           # zotero library id
+  api_key: "your-zotero-api-key"  # zotero api key
+  library_type: "user"            # "user" or "group"
+  item_types:
+    - conferencePaper
+    - journalArticle
+    - preprint
+  max_items: 100                  # optional limit for large libraries
+
+llm:
+  model: "gpt-4o-mini"
+  base_url: "https://api.openai.com/v1"
+  api_key: "sk-..."
+  temperature: 0.0
+
+embedding:
+  model: "avsolatorio/GIST-small-Embedding-v0"
+
+query:
+  max_results: 10
+  max_corpus: 250  # max number of Zotero items for similarity matching
+  include_abstract: true
+  translate_abstract: true
+  include_tldr: true
+  tldr_language: "Chinese"
+  tldr_max_words: 80

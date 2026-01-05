@@ -1,0 +1,8 @@
+openai>=1.12.0
+pyzotero>=1.5.18
+PyYAML>=6.0
+requests>=2.31.0
+feedparser>=6.0.11
+arxiv>=1.4.8
+sentence-transformers>=2.5.1
+numpy>=1.26.0
