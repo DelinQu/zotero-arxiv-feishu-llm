@@ -4,7 +4,7 @@ feishu:
   header_template: "blue"  # Optional: blue, wathet, turquoise, green, yellow, orange, red, carmine；if #DAE3FA is filled, it will be automatically mapped to wathet
 
 arxiv:
-  query: "cs.AI+cs.RO+cs.LG+cs.CL+cs.CV
+  query: "cs.AI+cs.RO+cs.LG+cs.CL+cs.CV"
   max_results: 250                # max number of arXiv papers to fetch
   only_new: true                  # true: only fetch papers from the last days (days_back)
   days_back: 1                    # number of days to fetch arXiv papers from
