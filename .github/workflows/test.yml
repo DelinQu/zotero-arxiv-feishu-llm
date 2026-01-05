@@ -1,16 +1,14 @@
-name: Run Zotero Feishu LLM
+name: Test Zotero Feishu LLM
 
 on:
-  schedule:
-    - cron: "0 2 * * *"
   workflow_dispatch: {}
 
 jobs:
-  run:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+      FEISHU_WEBHOOK: ${{ secrets.FEISHU_TEST_WEBHOOK }}
       ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
       ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -34,5 +32,5 @@ jobs:
       - name: Prepare config
         run: cp config.example.yaml config.yaml
 
-      - name: Run Zotero → Feishu pipeline
+      - name: Run Zotero → Feishu pipeline (test webhook)
         run: python main.py
