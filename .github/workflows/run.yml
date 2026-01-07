@@ -3,8 +3,8 @@ name: Run Zotero Feishu LLM
 on:
   schedule:
     # - cron: "0 0 * * 1-5"   # UTC 00:00 Mon–Fri (Sun–Thu 20:00 EDT)
-    - cron: "0 1 * * 1-5"     # UTC 01:00 Mon–Fri (Sun–Thu 20:00 EST)
-    # NOTE: GH QUEUE IS RANDOMIZED, SO JOB MAY DELAY UP TO 2 HOUR
+    # - cron: "0 1 * * 1-5"   # UTC 01:00 Mon–Fri (Sun–Thu 20:00 EST)
+    - cron: "0 0 * * 1-5"     # GH JOB MAY DELAY UP TO 2 HOURS
   workflow_dispatch: {}
 
 jobs:
