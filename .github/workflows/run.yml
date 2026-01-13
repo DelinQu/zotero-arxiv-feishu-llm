@@ -2,8 +2,8 @@ name: Run Zotero Feishu LLM
 
 on:
   schedule:
-    # Queue early, then sleep until target time (TARGET_HOUR/TARGET_MIN).
-    - cron: "0 0 * * 1-5"    # UTC 00:00 Mon–Fri
+    # 1. 修改：由 "0 0 * * 1-5" 改为 "0 0 * * *" 以便每天触发
+    - cron: "0 0 * * *"    # UTC 00:00 每天运行
   workflow_dispatch: {}
 
 jobs:
@@ -35,8 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Prepare config
-        run: cp config.example.yaml config.yaml
+      # 2. 修改：已删除 "Prepare config" 步骤 (cp config.example.yaml config.yaml)
 
       - name: Wait until target time (UTC)
         env:
