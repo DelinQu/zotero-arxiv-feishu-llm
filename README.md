@@ -5,26 +5,26 @@
   <img src="docs/teaser.png" width="80%">
 </p>
 
-Pull the latest arXiv papers, match them against your Zotero library via embeddings, optionally add TLDR/translation with an LLM, and send Feishu interactive cards. The pipeline stays minimal—no email or extra CI steps.
+Pull the latest arXiv papers, match them against your Zotero library via embeddings, optionally add TLDR/translation with an LLM, and send Feishu interactive cards or WeChat Work markdown messages. The pipeline stays minimal—no email or extra CI steps.
 
 ## What It Does
 - Fetches new arXiv submissions for your chosen categories.
 - Reads titles/abstracts/authors/tags from Zotero as your “interest profile.”
 - Ranks arXiv papers by embedding similarity; keeps the most relevant ones.
 - Optionally generates Chinese TLDRs and abstract translations; shows star ratings.
-- Sends Feishu cards with titles, links, authors, tags, and previews.
+- Sends Feishu cards or WeChat Work markdown messages with titles, links, authors, tags, and previews.
 
 ## Flow
 1) Read Zotero (skip entries without abstracts).  
 2) Pull today’s arXiv papers (per `arxiv.query`).  
 3) Compute Zotero ↔ arXiv similarity; keep top `query.max_results`.  
 4) Optionally create TLDRs/translations and add relevance stars.  
-5) Push Feishu cards via Webhook.
+5) Push Feishu cards or WeChat Work messages via Webhook.
 
 ## Requirements
 - Python 3.10+.  
 - Any OpenAI-compatible endpoint (official, Azure, or self-hosted).  
-- Zotero Library ID + API Key, and a Feishu bot Webhook.  
+- Zotero Library ID + API Key, and a Feishu bot Webhook or WeChat Work bot Webhook.  
 - CPU is enough; embedding/LLM calls go to remote APIs.
 
 ## Quick Start
@@ -47,15 +47,21 @@ Pull the latest arXiv papers, match them against your Zotero library via embeddi
 - `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` are also supported and equivalent to `LLM_*`.
 
 ## Feishu Setup
-- In your Feishu group, add a “Custom Bot” and copy the Webhook (see [official guide](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot)).
+- In your Feishu group, add a "Custom Bot" and copy the Webhook (see [official guide](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot)).
 - Cards are sent directly via Webhook; tweak `feishu.header_template` / `feishu.title` for styling.
+
+## WeChat Work Setup
+- In your WeChat Work group chat, add a "Custom Bot" (群机器人) and copy the Webhook URL (see [official guide](https://developer.work.weixin.qq.com/document/path/91770)).
+- Messages are sent in Markdown format via Webhook; configure `wechat.webhook_url` / `wechat.title` in `config.yaml`.
+- **Priority**: If both Feishu and WeChat Work webhooks are configured, WeChat Work takes priority.
 
 ## Secrets & Env Vars
 Priority: env vars > `config.yaml` > `config.example.yaml`.
 
 | Name | Required | Source | Notes |
 | --- | --- | --- | --- |
-| `FEISHU_WEBHOOK` | Yes | Secret / env | `LARK_WEBHOOK` also works; use `FEISHU_TEST_WEBHOOK` for dry-runs. |
+| `FEISHU_WEBHOOK` | No* | Secret / env | `LARK_WEBHOOK` also works; use `FEISHU_TEST_WEBHOOK` for dry-runs. *Required if WeChat Work not configured. |
+| `WECHAT_WEBHOOK` | No* | Secret / env | `WECHAT_WORK_WEBHOOK` also works; use `WECHAT_TEST_WEBHOOK` for dry-runs. *Required if Feishu not configured. |
 | `ZOTERO_ID` | Yes | Secret / env | Zotero library ID. |
 | `ZOTERO_KEY` | Yes | Secret / env | Zotero API key. |
 | `ZOTERO_LIBRARY_TYPE` | Yes | Secret / env | `user` or `group`. |
@@ -68,6 +74,7 @@ Priority: env vars > `config.yaml` > `config.example.yaml`.
 
 ## Config Highlights (`config.yaml`)
 - `feishu.webhook_url`, `feishu.title`, `feishu.header_template` (blue/wathet/turquoise/green/yellow/orange/red/carmine; `#DAE3FA` maps to wathet).
+- `wechat.webhook_url`, `wechat.title` for WeChat Work bot configuration.
 - `arxiv.source` (`rss` or `api`), `arxiv.query`, `arxiv.max_results`, `arxiv.days_back` (supports fractional days for hours) for arXiv fetching/window.
 - `arxiv.rss_wait_minutes` / `arxiv.rss_retry_minutes`: when using RSS, keep polling for new papers if the feed is still empty (e.g. before daily update).
 - Scheduling: GitHub Actions `on.schedule` cron controls when the run is queued.
@@ -79,14 +86,19 @@ Priority: env vars > `config.yaml` > `config.example.yaml`.
 - `query.include_tldr`, `query.tldr_language`, `query.tldr_max_words` for TLDR control.
 
 ## Run & Debug
-- Run: `python main.py` (reads config and sends immediately).
-- To test card layout, set `FEISHU_TEST_WEBHOOK`, then switch to the real Webhook.
+- **Local run**: `python main.py` (reads config and sends immediately).
+  - The script will automatically detect which webhook is configured (Feishu or WeChat Work) and send accordingly.
+  - If both are configured, WeChat Work takes priority.
+- To test without affecting production, set `FEISHU_TEST_WEBHOOK` or `WECHAT_TEST_WEBHOOK`, then switch to the real Webhook.
 - For large Zotero libraries, lower `query.max_corpus` or `zotero.max_items` to speed up.
 
 ## GitHub Actions
 - Workflow `.github/workflows/run.yml`:  
-  - `run` job: scheduled only.
+  - `run` job: scheduled only (uses Feishu).
   - `test` job: manual only, uses `FEISHU_TEST_WEBHOOK` for safe drills.
+- Workflow `.github/workflows/run_ep_wechat.yml`:
+  - `run` job: scheduled only (uses WeChat Work).
+  - `test` job: manual only, uses `WECHAT_TEST_WEBHOOK` for safe drills.
 - In your repo (or fork) Settings → Secrets, add the env vars above; the workflow copies `config.example.yaml` to `config.yaml` and runs `python main.py`.
 - Want zero local setup? Fork this repo → add Secrets in your fork → open Actions and manually trigger `run` or `test`. Tweak `config.example.yaml` / `arxiv.query` in your fork and rerun.
 

@@ -3,6 +3,10 @@ feishu:
   webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook"         # feishu robot webhook url
   header_template: "blue"  # Optional: blue, wathet, turquoise, green, yellow, orange, red, carmine；if #DAE3FA is filled, it will be automatically mapped to wathet
 
+wechat:
+  title: "每日论文推送"
+  webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your-key"    # 企业微信机器人 webhook url
+
 arxiv:
   query: "cs.AI+cs.LG+cs.CV+cs.CL+cs.MM+cs.GR"
   source: "rss"                   # "rss" (may delay a few hours) or "api" (official arXiv API, usually fresher)

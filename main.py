@@ -5,6 +5,7 @@ import yaml
 
 from arxiv_fetcher import fetch_daily_arxiv
 from feishu import build_post_content, post_to_feishu
+from wechat import build_wechat_markdown, post_to_wechat
 from llm_utils import LLMScorer
 from similarity import rerank_by_embedding
 from zotero_client import fetch_papers
@@ -21,6 +22,7 @@ def load_config(path: str = "config.yaml") -> Dict:
     # Environment variable overrides for secrets
     cfg.setdefault("zotero", {})
     cfg.setdefault("feishu", {})
+    cfg.setdefault("wechat", {})
     cfg.setdefault("llm", {})
     cfg.setdefault("query", {})
     cfg.setdefault("arxiv", {})
@@ -31,6 +33,7 @@ def load_config(path: str = "config.yaml") -> Dict:
         ("zotero", "api_key"): ["ZOTERO_KEY"],
         ("zotero", "library_type"): ["ZOTERO_LIBRARY_TYPE"],
         ("feishu", "webhook_url"): ["FEISHU_WEBHOOK", "LARK_WEBHOOK"],
+        ("wechat", "webhook_url"): ["WECHAT_WEBHOOK", "WECHAT_WORK_WEBHOOK"],
         ("llm", "api_key"): ["LLM_API_KEY", "OPENAI_API_KEY"],
         ("llm", "model"): ["LLM_MODEL", "OPENAI_MODEL"],
         ("llm", "base_url"): ["LLM_BASE_URL", "OPENAI_BASE_URL"],
@@ -44,6 +47,7 @@ def load_config(path: str = "config.yaml") -> Dict:
     # Defaults
     cfg["feishu"].setdefault("title", "Zotero LLM Picks")
     cfg["feishu"].setdefault("header_template", "turquoise")
+    cfg["wechat"].setdefault("title", "每日论文推送")
     cfg["zotero"].setdefault("library_type", "user")
     cfg["zotero"].setdefault("item_types", ["conferencePaper", "journalArticle", "preprint"])
     cfg["query"].setdefault("max_results", 5)
@@ -62,10 +66,16 @@ def load_config(path: str = "config.yaml") -> Dict:
     cfg["llm"].setdefault("temperature", 0.0)
     cfg["llm"].setdefault("base_url", "https://api.openai.com/v1")
 
+    # 检查通知方式：至少需要配置飞书或企业微信之一
+    has_feishu = bool(cfg.get("feishu", {}).get("webhook_url"))
+    has_wechat = bool(cfg.get("wechat", {}).get("webhook_url"))
+    
+    if not has_feishu and not has_wechat:
+        raise ValueError("至少需要配置 feishu.webhook_url 或 wechat.webhook_url 之一")
+    
     required = [
         ("zotero", "library_id"),
         ("zotero", "api_key"),
-        ("feishu", "webhook_url"),
         ("llm", "api_key"),
         ("llm", "model"),
         ("arxiv", "query"),
@@ -155,14 +165,28 @@ def main():
     matches = enrich_with_llm(ranked, scorer, config["query"])
     print(f"Enriched {len(matches)} matched papers.")
 
-    payload = build_post_content(
-        title=config["feishu"]["title"],
-        query=config["arxiv"]["query"],
-        papers=matches,
-        header_template=config["feishu"].get("header_template", "turquoise"),
-    )
-    post_to_feishu(config["feishu"]["webhook_url"], payload)
-    print("Sent to Feishu webhook.")
+    # 根据配置选择发送到飞书或企业微信
+    if config.get("wechat", {}).get("webhook_url"):
+        # 发送到企业微信
+        payload = build_wechat_markdown(
+            title=config["wechat"].get("title", "每日论文推送"),
+            query=config["arxiv"]["query"],
+            papers=matches,
+        )
+        post_to_wechat(config["wechat"]["webhook_url"], payload)
+        print("Sent to WeChat Work webhook.")
+    elif config.get("feishu", {}).get("webhook_url"):
+        # 发送到飞书
+        payload = build_post_content(
+            title=config["feishu"]["title"],
+            query=config["arxiv"]["query"],
+            papers=matches,
+            header_template=config["feishu"].get("header_template", "turquoise"),
+        )
+        post_to_feishu(config["feishu"]["webhook_url"], payload)
+        print("Sent to Feishu webhook.")
+    else:
+        raise ValueError("未配置任何通知方式（飞书或企业微信）")
 
 
 if __name__ == "__main__":
