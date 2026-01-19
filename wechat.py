@@ -22,6 +22,10 @@ def _short_link(url: str) -> str:
 def _paper_md(idx: int, paper: Dict[str, str], max_abstract_length: int = 500) -> str:
     """将单篇论文转换为Markdown格式"""
     title = paper.get("title", "Untitled")
+    # 限制标题长度，避免过长
+    if len(title) > 200:
+        title = title[:200] + "..."
+    
     link = paper.get("link") or paper.get("url")
     score = paper.get("score")
     score_text = f"{score:.2f}" if isinstance(score, (int, float)) else "N/A"
@@ -31,12 +35,21 @@ def _paper_md(idx: int, paper: Dict[str, str], max_abstract_length: int = 500) -
     tldr = paper.get("tldr") or ""
     authors = paper.get("authors") or []
     tags = paper.get("tags") or []
-    keywords = ", ".join(tags[:6])
+    
+    # 限制关键词数量
+    keywords = ", ".join(tags[:4])  # 减少到4个关键词
+    if len(keywords) > 150:  # 限制关键词总长度
+        keywords = keywords[:150] + "..."
+    
+    # 限制作者数量
     if authors:
-        if len(authors) <= 5:
+        if len(authors) <= 3:
             author_line = ", ".join(authors)
         else:
-            author_line = ", ".join(authors[:4] + ["...", authors[-1]])
+            author_line = ", ".join(authors[:2] + ["...", authors[-1]])
+        # 限制作者行长度
+        if len(author_line) > 200:
+            author_line = author_line[:200] + "..."
     else:
         author_line = ""
     link_text = _short_link(link)
@@ -51,6 +64,9 @@ def _paper_md(idx: int, paper: Dict[str, str], max_abstract_length: int = 500) -
     # 评分和链接
     score_line = f"{stars} 相关度: {score_text}"
     if link_text:
+        # 限制链接文本长度
+        if len(link_text) > 50:
+            link_text = link_text[:50] + "..."
         score_line += f" | [{link_text}]({link})"
     lines.append(score_line)
     
@@ -125,23 +141,38 @@ def build_single_paper_message(
     paper: Dict[str, str],
     title: str = "每日论文推送",
 ) -> Dict:
-    """构建单篇论文的企业微信Markdown消息"""
+    """构建单篇论文的企业微信Markdown消息
+    
+    企业微信Markdown消息最大长度为4096字符，需要严格控制。
+    """
+    MAX_LENGTH = 4096
     date_str = datetime.now().strftime('%Y年%m月%d日')
     
-    # 构建单篇论文的Markdown内容
+    # 构建头部（预留一些空间）
     header = f"# {title}\n\n📚 **第 {idx}/{total} 篇** | {date_str}\n\n"
-    paper_content = _paper_md(idx, paper, max_abstract_length=800)  # 单条消息可以更长
+    header_length = len(header)
     
-    markdown_content = header + paper_content
+    # 计算可用空间（预留50字符作为安全边界）
+    available_length = MAX_LENGTH - header_length - 50
     
-    # 确保不超过4096字符限制
-    MAX_LENGTH = 4096
-    if len(markdown_content) > MAX_LENGTH:
-        # 如果还是太长，截断摘要部分
-        paper_content_short = _paper_md(idx, paper, max_abstract_length=300)
-        markdown_content = header + paper_content_short
+    # 逐步尝试不同的摘要长度
+    for max_abstract_len in [600, 400, 250, 150, 100]:
+        paper_content = _paper_md(idx, paper, max_abstract_length=max_abstract_len)
+        markdown_content = header + paper_content
+        
+        if len(markdown_content) <= MAX_LENGTH:
+            break
+    else:
+        # 如果所有尝试都失败，强制截断
+        paper_content = _paper_md(idx, paper, max_abstract_length=100)
+        markdown_content = header + paper_content
         if len(markdown_content) > MAX_LENGTH:
-            markdown_content = markdown_content[:MAX_LENGTH - 10] + "..."
+            # 最后的安全措施：直接截断整个内容
+            markdown_content = markdown_content[:MAX_LENGTH - 20] + "\n\n*（内容过长已截断）*"
+    
+    # 最终验证
+    if len(markdown_content) > MAX_LENGTH:
+        markdown_content = markdown_content[:MAX_LENGTH - 20] + "\n\n*（内容过长已截断）*"
     
     return {
         "msgtype": "markdown",
