@@ -9,6 +9,8 @@ arxiv:
   max_results: 300                # max number of arXiv papers to fetch
   only_new: true                  # true: only fetch papers from the last days (days_back)
   days_back: 1                  # days back; can be fractional for hours (e.g. 0.5 = 12h)
+  rss_wait_minutes: 240           # wait for RSS to update when empty; 0 to disable
+  rss_retry_minutes: 15           # poll interval while waiting (minutes)
 
 zotero:
   library_id: "1234567"           # zotero library id
