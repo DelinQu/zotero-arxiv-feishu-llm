@@ -235,7 +235,7 @@ def post_papers_separately(
     papers: List[Dict[str, str]],
     delay_seconds: float = 0.5,
 ) -> None:
-    """将论文分成多条消息推送，每条消息一篇论文
+    """将论文按4000字符长度分成多条消息推送
     
     Args:
         webhook_url: 企业微信Webhook URL
@@ -245,7 +245,9 @@ def post_papers_separately(
     """
     import time
     
+    MAX_MESSAGE_LENGTH = 4000  # 每条消息最大长度（留96字符安全边界）
     total = len(papers)
+    date_str = datetime.now().strftime('%Y年%m月%d日')
     
     if total == 0:
         # 如果没有论文，发送一条提示消息
@@ -254,28 +256,84 @@ def post_papers_separately(
         print("Sent summary message (no papers) to WeChat Work webhook.")
         return
     
-    # 发送摘要消息
-    summary_payload = build_summary_message(title, total)
-    post_to_wechat(webhook_url, summary_payload)
-    print(f"Sent summary message to WeChat Work webhook. Total papers: {total}")
-    
-    # 等待一下再发送论文详情
-    if delay_seconds > 0:
-        time.sleep(delay_seconds)
-    
-    # 逐条发送每篇论文
+    # 构建所有论文的内容
+    paper_contents = []
     for idx, paper in enumerate(papers, 1):
+        paper_md = _paper_md(idx, paper, max_abstract_length=500)  # 允许更长的摘要
+        paper_contents.append(paper_md)
+    
+    # 按长度分割消息
+    messages = []
+    current_message_parts = []
+    current_length = 0
+    
+    # 第一条消息的头部
+    header = f"# {title}\n\nฅʕ•̫͡•ʔฅ ◔.̮◔✧ (•̀ᴗ• ) ArXiv 小助手来啦！{date_str} 找到 **{total}** 📚 篇论文：\n\n---\n\n"
+    header_length = len(header)
+    current_length = header_length
+    current_message_parts = [header]
+    
+    for idx, paper_content in enumerate(paper_contents, 1):
+        paper_with_separator = paper_content + "\n\n---\n\n"
+        paper_length = len(paper_with_separator)
+        
+        # 检查添加这篇论文后是否会超过长度限制
+        if current_length + paper_length > MAX_MESSAGE_LENGTH:
+            # 如果当前消息已经有内容，先保存当前消息
+            if len(current_message_parts) > 1 or (len(current_message_parts) == 1 and current_message_parts[0] != header):
+                # 移除最后的分隔符
+                last_part = current_message_parts[-1]
+                if last_part.endswith("\n\n---\n\n"):
+                    current_message_parts[-1] = last_part[:-8]
+                messages.append("".join(current_message_parts))
+            
+            # 开始新消息（如果单篇论文就超过限制，需要截断）
+            if paper_length > MAX_MESSAGE_LENGTH:
+                # 单篇论文太长，需要截断
+                truncated = paper_content[:MAX_MESSAGE_LENGTH - 50] + "\n\n*（内容过长已截断）*"
+                current_message_parts = [truncated]
+                current_length = len(truncated)
+            else:
+                # 开始新消息，添加简短的头部
+                new_header = f"# {title} (续)\n\n"
+                current_message_parts = [new_header, paper_with_separator]
+                current_length = len(new_header) + paper_length
+        else:
+            # 可以添加到当前消息
+            current_message_parts.append(paper_with_separator)
+            current_length += paper_length
+    
+    # 添加最后一条消息
+    if current_message_parts:
+        # 移除最后的分隔符
+        last_part = current_message_parts[-1]
+        if last_part.endswith("\n\n---\n\n"):
+            current_message_parts[-1] = last_part[:-8]
+        messages.append("".join(current_message_parts))
+    
+    # 发送所有消息
+    total_messages = len(messages)
+    for msg_idx, message_content in enumerate(messages, 1):
         try:
-            payload = build_single_paper_message(idx, total, paper, title)
+            # 最终长度检查
+            if len(message_content) > 4096:
+                message_content = message_content[:4050] + "\n\n*（内容过长已截断）*"
+            
+            payload = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "content": message_content
+                }
+            }
             post_to_wechat(webhook_url, payload)
-            print(f"Sent paper {idx}/{total} to WeChat Work webhook.")
+            print(f"Sent message {msg_idx}/{total_messages} to WeChat Work webhook (length: {len(message_content)} chars)")
             
             # 在消息之间添加延迟，避免发送过快
-            if idx < total and delay_seconds > 0:
+            if msg_idx < total_messages and delay_seconds > 0:
                 time.sleep(delay_seconds)
         except Exception as e:
-            print(f"Failed to send paper {idx}/{total}: {e}")
-            # 继续发送其他论文，不中断整个流程
+            print(f"Failed to send message {msg_idx}/{total_messages}: {e}")
+            # 继续发送其他消息，不中断整个流程
             continue
     
-    print(f"Finished sending all {total} papers to WeChat Work webhook.")
+    print(f"Finished sending all {total_messages} messages ({total} papers) to WeChat Work webhook.")
