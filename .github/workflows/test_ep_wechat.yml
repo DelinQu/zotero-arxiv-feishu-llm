@@ -1,16 +1,14 @@
-name: Run Zotero Feishu LLM
+name: Test Zotero WeChat Work LLM
 
 on:
-  schedule:
-    - cron: "0 0 * * 1-5"    # UTC 00:00 Mon–Fri
   workflow_dispatch: {}
 
 jobs:
-  run:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
     env:
-      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+      WECHAT_WEBHOOK: ${{ secrets.WECHAT_TEST_WEBHOOK }}
       ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
       ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
       ZOTERO_LIBRARY_TYPE: ${{ secrets.ZOTERO_LIBRARY_TYPE }}
@@ -20,17 +18,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: "pip"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Prepare config
         run: cp config.example.yaml config.yaml
 
-      - name: Run Zotero → Feishu pipeline
+      - name: Run Zotero → WeChat Work pipeline (test webhook)
         run: python main.py
