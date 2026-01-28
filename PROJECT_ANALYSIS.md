@@ -819,6 +819,7 @@ messages.append("".join(current_message))
 
 3. **Add pydantic for config validation**:
    ```python
+   from typing import Literal
    from pydantic import BaseModel, AnyHttpUrl
    
    class ZoteroConfig(BaseModel):
