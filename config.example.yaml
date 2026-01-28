@@ -3,9 +3,10 @@ feishu:
   webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook"         # feishu robot webhook url
   header_template: "blue"  # Optional: blue, wathet, turquoise, green, yellow, orange, red, carmine；if #DAE3FA is filled, it will be automatically mapped to wathet
 
-wechat:
-  title: "每日论文推送"
-  webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your-key"    # 企业微信机器人 webhook url
+# uncomment to ues wechat
+# wechat:
+#   title: "每日论文推送"
+#   webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your-key"    # 企业微信机器人 webhook url
 
 arxiv:
   query: "cs.AI+cs.RO+cs.LG+cs.CL+cs.CV"
@@ -13,8 +14,8 @@ arxiv:
   max_results: 250                # max number of arXiv papers to fetch
   only_new: true                  # true: only fetch papers from the last days (days_back)
   days_back: 0.5                  # days back; can be fractional for hours (e.g. 0.5 = 12h)
-  rss_wait_minutes: 240           # wait for RSS to update when empty; 0 to disable
-  rss_retry_minutes: 15           # poll interval while waiting (minutes)
+  rss_wait_minutes: 360           # wait for RSS to update when empty; 0 to disable
+  rss_retry_minutes: 30           # poll interval while waiting (minutes)
 
 zotero:
   library_id: "1234567"           # zotero library id
