@@ -49,6 +49,7 @@ Pull the latest arXiv papers, match them against your Zotero library via embeddi
 ## Feishu Setup
 - In your Feishu group, add a "Custom Bot" and copy the Webhook (see [official guide](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot)).
 - Cards are sent directly via Webhook; tweak `feishu.header_template` / `feishu.title` for styling.
+- If you want Feishu Wiki doc publishing, also create a Feishu Open Platform app and configure `feishu.app_id`, `feishu.app_secret`, and `feishu.parent_url`.
 
 ## WeChat Work Setup
 - In your WeChat Work group chat, add a "Custom Bot" (群机器人) and copy the Webhook URL (see [official guide](https://developer.work.weixin.qq.com/document/path/91770)).
@@ -62,6 +63,9 @@ Priority: env vars > `config.yaml` > `config.example.yaml`.
 | Name | Required | Source | Notes |
 | --- | --- | --- | --- |
 | `FEISHU_WEBHOOK` | No* | Secret / env | `LARK_WEBHOOK` also works; use `FEISHU_TEST_WEBHOOK` for dry-runs. *Required if WeChat Work not configured. |
+| `FEISHU_APP_ID` | No | Secret / env | Used when Feishu Wiki doc publishing is enabled. |
+| `FEISHU_APP_SECRET` | No | Secret / env | Used when Feishu Wiki doc publishing is enabled. |
+| `FEISHU_PARENT_URL` | No | Secret / env | Feishu Wiki parent page URL. |
 | `WECHAT_WEBHOOK` | No* | Secret / env | `WECHAT_WORK_WEBHOOK` also works; use `WECHAT_TEST_WEBHOOK` for dry-runs. *Required if Feishu not configured. |
 | `ZOTERO_ID` | Yes | Secret / env | Zotero library ID. |
 | `ZOTERO_KEY` | Yes | Secret / env | Zotero API key. |
@@ -75,6 +79,7 @@ Priority: env vars > `config.yaml` > `config.example.yaml`.
 
 ## Config Highlights (`config.yaml`)
 - `feishu.webhook_url`, `feishu.title`, `feishu.header_template` (blue/wathet/turquoise/green/yellow/orange/red/carmine; `#DAE3FA` maps to wathet).
+- `feishu.app_id`, `feishu.app_secret`, `feishu.parent_url`, `feishu.update_parent_doc` for Feishu Wiki doc publishing.
 - `wechat.webhook_url`, `wechat.title` for WeChat Work bot configuration.
 - `arxiv.source` (`rss` or `api`), `arxiv.query`, `arxiv.max_results`, `arxiv.days_back` (supports fractional days for hours) for arXiv fetching/window.
 - `arxiv.rss_wait_minutes` / `arxiv.rss_retry_minutes`: when using RSS, keep polling for new papers if the feed is still empty (e.g. before daily update).
@@ -91,7 +96,7 @@ Priority: env vars > `config.yaml` > `config.example.yaml`.
   - The script will automatically detect which webhook is configured (Feishu or WeChat Work) and send accordingly.
   - If both are configured, WeChat Work takes priority.
   - For WeChat Work, messages are automatically split into chunks of 1000 characters to avoid the 4096 character limit.
-- **Test WeChat Webhook**: Use `python test_wechat.py <webhook_url>` to test if your WeChat Work webhook is working correctly.
+- **Test WeChat Webhook**: Use `python test/test_wechat.py <webhook_url>` to test if your WeChat Work webhook is working correctly.
   - The test script can also test different message lengths and help diagnose issues.
 - To test without affecting production, set `FEISHU_TEST_WEBHOOK` or `WECHAT_TEST_WEBHOOK`, then switch to the real Webhook.
 - For large Zotero libraries, lower `query.max_corpus` or `zotero.max_items` to speed up.

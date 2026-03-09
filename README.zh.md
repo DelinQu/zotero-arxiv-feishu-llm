@@ -4,13 +4,15 @@
   <img src="docs/teaser.png" width="80%">
 </p>
 
-从 arXiv 获取当天的新论文，基于嵌入相似度匹配你的 Zotero 库（作为兴趣集），用 LLM 生成 TLDR/翻译，并通过飞书卡片或企业微信 Markdown 消息推送。默认只有最小链路，去掉了邮件、复杂 CI 等附加流程。
+从 arXiv 获取当天的新论文，基于嵌入相似度匹配你的 Zotero 库（作为兴趣集），用 LLM 生成 TLDR/翻译，并通过飞书卡片、飞书文档或企业微信 Markdown 消息推送。默认只有最小链路，去掉了邮件、复杂 CI 等附加流程。
 
 ## 功能概览
 - 拉取当天 arXiv 新稿，按指定学科/关键词过滤。
 - 从 Zotero 库读取标题/摘要/作者/标签等，作为兴趣参考。
 - 使用句向量模型计算相似度，截取最相关的论文。
 - 可选生成中文 TLDR、摘要翻译；评分星级一并展示。
+- 每日结果会落地为本地 Markdown 文档，并尽量为每篇论文补一张图（优先提取 PDF 前几页中的第一张图片，失败时回退为第一页预览图）。
+- 可选发布到飞书文档，自动创建文档并上传插图。
 - 通过飞书自定义机器人推送卡片或企业微信机器人推送 Markdown 消息，预览前 N 篇，便于快速浏览。
 
 ## 工作流程
@@ -18,7 +20,9 @@
 2) 拉取当天 arXiv 新稿（按 `arxiv.query`）。  
 3) 计算 arXiv ↔ Zotero 摘要的相似度，按分数排序并截取 `query.max_results`。  
 4) 可选生成 TLDR、摘要翻译；添加相关度星级。  
-5) 通过飞书 Webhook 发送互动卡片或企业微信 Webhook 发送 Markdown 消息，含标题/链接、作者、关键词、TLDR/摘要预览。
+5) 生成本地 Markdown 日报与配套图片资源。
+6) 可选发布到飞书文档（若配置了飞书应用凭证）。
+7) 通过飞书 Webhook 发送互动卡片或企业微信 Webhook 发送 Markdown 消息，含标题/链接、作者、关键词、TLDR/摘要预览。
 
 ## 环境要求
 - Python 3.10+。
@@ -49,6 +53,8 @@
 ## 飞书配置
 - 在飞书群添加「自定义机器人」，复制生成的 Webhook（参考 [官方指南](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot)）。
 - 本项目直接用 Webhook 发送卡片，无需额外模板；如需自定义样式，可调整 `feishu.header_template`、`feishu.title` 等配置。
+- 如果要启用“飞书文档日报”，还需要创建飞书开放平台应用，并配置 `feishu.app_id`、`feishu.app_secret`、`feishu.parent_url`。
+- 文档链路会调用飞书文档与云空间上传接口，建议为应用补齐文档创建、文档编辑、云文档媒体上传等相关权限。
 
 ## 企业微信配置
 - 在企业微信群聊中添加「自定义机器人」（群机器人），复制生成的 Webhook URL（参考 [官方文档](https://developer.work.weixin.qq.com/document/path/91770)）。
@@ -61,8 +67,11 @@
 
 | 名称 | 必填 | 来源 | 说明 |
 | --- | --- | --- | --- |
-| `FEISHU_WEBHOOK` | 否* | Secrets / 环境变量 | `LARK_WEBHOOK` 也可；测试用 `FEISHU_TEST_WEBHOOK`。*未配置企业微信时必填。 |
-| `WECHAT_WEBHOOK` | 否* | Secrets / 环境变量 | `WECHAT_WORK_WEBHOOK` 也可；测试用 `WECHAT_TEST_WEBHOOK`。*未配置飞书时必填。 |
+| `FEISHU_WEBHOOK` | 否* | Secrets / 环境变量 | `LARK_WEBHOOK` 也可；测试用 `FEISHU_TEST_WEBHOOK`。*若未配置企业微信和飞书文档应用，至少需要它。 |
+| `FEISHU_APP_ID` | 否 | Secrets / 环境变量 | 启用飞书文档集成时使用。 |
+| `FEISHU_APP_SECRET` | 否 | Secrets / 环境变量 | 启用飞书文档集成时使用。 |
+| `FEISHU_PARENT_URL` | 否 | Secrets / 环境变量 | 飞书 Wiki 父页面 URL。 |
+| `WECHAT_WEBHOOK` | 否* | Secrets / 环境变量 | `WECHAT_WORK_WEBHOOK` 也可；测试用 `WECHAT_TEST_WEBHOOK`。*若未配置飞书卡片和飞书文档，至少需要它。 |
 | `ZOTERO_ID` | 是 | Secrets / 环境变量 | Zotero 库 ID。 |
 | `ZOTERO_KEY` | 是 | Secrets / 环境变量 | Zotero API Key。 |
 | `ZOTERO_LIBRARY_TYPE` | 是 | Secrets / 环境变量 | `user` 或 `group`。 |
@@ -87,6 +96,7 @@
 
 ## 配置项速览（`config.yaml`）
 - `feishu.webhook_url`：飞书机器人 Webhook。
+- `feishu.app_id` / `feishu.app_secret` / `feishu.parent_url`：飞书文档应用凭证与父页面。
 - `feishu.title` / `feishu.header_template`：卡片标题与头部色（blue / wathet / turquoise / green / yellow / orange / red / carmine；填 `#DAE3FA` 会自动映射为 wathet）。
 - `wechat.webhook_url`：企业微信机器人 Webhook。
 - `wechat.title`：企业微信消息标题。
@@ -99,16 +109,18 @@
 - `query.max_results` / `query.max_corpus`：推送数量与相似度计算的库上限。
 - `query.include_abstract` / `query.translate_abstract`：卡片中是否附摘要及翻译。
 - `query.include_tldr` / `query.tldr_language` / `query.tldr_max_words`：TLDR 开关、语言与长度。
+- `output.root_dir` / `output.include_figures` / `output.figure_pages`：本地 Markdown 输出目录、是否抓图、从 PDF 前几页尝试提取图片。
 
 ## 本地运行与调试
 - **本地运行**：直接执行 `python main.py`（读取配置并立即推送）。
   - 程序会自动检测配置的 Webhook（飞书或企业微信）并相应发送。
+  - 如果配置了飞书文档应用，还会在本地生成 `output/digests/<日期>/daily_digest.md`，并尝试同步生成飞书文档。
   - 如果同时配置了飞书和企业微信，程序会优先使用企业微信。
   - 对于企业微信，消息会自动按 1000 字符分割成多条消息，避免超过 4096 字符限制。
   - 这是推荐的本地运行和调试方式，可以快速验证配置和功能。
-- **测试企业微信 Webhook**：使用 `python test_wechat.py <webhook_url>` 测试企业微信 Webhook 是否正常工作。
+- **测试企业微信 Webhook**：使用 `python test/test_wechat.py <webhook_url>` 测试企业微信 Webhook 是否正常工作。
   - 测试脚本可以测试不同长度的消息，帮助诊断问题。
-  - 也可以设置环境变量：`export WECHAT_WEBHOOK=<url> && python test_wechat.py`
+  - 也可以设置环境变量：`export WECHAT_WEBHOOK=<url> && python test/test_wechat.py`
 - 如只想测试消息样式，可先设置 `FEISHU_TEST_WEBHOOK` 或 `WECHAT_TEST_WEBHOOK`；发送成功后再切换正式 Webhook。
 - 调优建议：库很大时可调低 `query.max_corpus` 或 `zotero.max_items` 以加速。
 

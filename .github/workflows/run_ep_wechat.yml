@@ -29,8 +29,13 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Prepare config
+        run: cp config.example.yaml config.yaml
 
       - name: Run Zotero → WeChat Work pipeline
         run: python main.py

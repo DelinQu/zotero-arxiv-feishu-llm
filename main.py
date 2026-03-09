@@ -1,90 +1,16 @@
-import os
+from datetime import datetime
 from typing import Dict, List
 
-import yaml
-
 from arxiv_fetcher import fetch_daily_arxiv
+from config_utils import has_config_value, load_config, validate_main_config
+from daily_digest import generate_daily_digest
 from feishu import build_post_content, post_to_feishu
+from feishu_docs import FeishuDocsClient
 from wechat import post_papers_separately
 from llm_utils import LLMScorer
+from naming import build_daily_doc_title
 from similarity import rerank_by_embedding
 from zotero_client import fetch_papers
-
-
-def load_config(path: str = "config.yaml") -> Dict:
-    if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"Config file {path} not found. Copy config.example.yaml and fill in your settings."
-        )
-    with open(path, "r", encoding="utf-8") as file:
-        cfg = yaml.safe_load(file) or {}
-
-    # Environment variable overrides for secrets
-    cfg.setdefault("zotero", {})
-    cfg.setdefault("feishu", {})
-    cfg.setdefault("wechat", {})
-    cfg.setdefault("llm", {})
-    cfg.setdefault("query", {})
-    cfg.setdefault("arxiv", {})
-    cfg.setdefault("embedding", {})
-
-    env_overrides = {
-        ("zotero", "library_id"): ["ZOTERO_ID"],
-        ("zotero", "api_key"): ["ZOTERO_KEY"],
-        ("zotero", "library_type"): ["ZOTERO_LIBRARY_TYPE"],
-        ("feishu", "webhook_url"): ["FEISHU_WEBHOOK", "LARK_WEBHOOK"],
-        ("wechat", "webhook_url"): ["WECHAT_WEBHOOK", "WECHAT_WORK_WEBHOOK"],
-        ("llm", "api_key"): ["LLM_API_KEY", "OPENAI_API_KEY"],
-        ("llm", "model"): ["LLM_MODEL", "OPENAI_MODEL"],
-        ("llm", "base_url"): ["LLM_BASE_URL", "OPENAI_BASE_URL"],
-    }
-    for (section, key), env_keys in env_overrides.items():
-        for env_key in env_keys:
-            if os.getenv(env_key):
-                cfg[section][key] = os.getenv(env_key)
-                break
-
-    # Defaults
-    cfg["feishu"].setdefault("title", "Zotero LLM Picks")
-    cfg["feishu"].setdefault("header_template", "turquoise")
-    cfg["wechat"].setdefault("title", "每日论文推送")
-    cfg["zotero"].setdefault("library_type", "user")
-    cfg["zotero"].setdefault("item_types", ["conferencePaper", "journalArticle", "preprint"])
-    cfg["query"].setdefault("max_results", 5)
-    cfg["query"].setdefault("include_abstract", True)
-    cfg["query"].setdefault("translate_abstract", True)
-    cfg["query"].setdefault("include_tldr", True)
-    cfg["query"].setdefault("tldr_language", "Chinese")
-    cfg["query"].setdefault("tldr_max_words", 80)
-    cfg["query"].setdefault("max_corpus", 400)
-    cfg["arxiv"].setdefault("query", "cs.AI+cs.CL+cs.LG")
-    cfg["arxiv"].setdefault("max_results", 30)
-    cfg["arxiv"].setdefault("days_back", 1)
-    cfg["arxiv"].setdefault("only_new", True)
-    cfg["arxiv"].setdefault("source", "rss")  # "rss" (default) or "api"
-    cfg["embedding"].setdefault("model", "avsolatorio/GIST-small-Embedding-v0")
-    cfg["llm"].setdefault("temperature", 0.0)
-    cfg["llm"].setdefault("base_url", "https://api.openai.com/v1")
-
-    # 检查通知方式：至少需要配置飞书或企业微信之一
-    has_feishu = bool(cfg.get("feishu", {}).get("webhook_url"))
-    has_wechat = bool(cfg.get("wechat", {}).get("webhook_url"))
-    
-    if not has_feishu and not has_wechat:
-        raise ValueError("至少需要配置 feishu.webhook_url 或 wechat.webhook_url 之一")
-    
-    required = [
-        ("zotero", "library_id"),
-        ("zotero", "api_key"),
-        ("llm", "api_key"),
-        ("llm", "model"),
-        ("arxiv", "query"),
-    ]
-    missing = [(s, k) for (s, k) in required if not cfg.get(s, {}).get(k)]
-    if missing:
-        missing_str = ", ".join([f"{s}.{k}" for s, k in missing])
-        raise ValueError(f"Missing required config values: {missing_str}")
-    return cfg
 
 
 def enrich_with_llm(papers: List[Dict], scorer: LLMScorer, query: Dict[str, str]) -> List[Dict]:
@@ -111,6 +37,12 @@ def enrich_with_llm(papers: List[Dict], scorer: LLMScorer, query: Dict[str, str]
 
 def main():
     config = load_config()
+    validate_main_config(config)
+    generated_at = datetime.now()
+    daily_title = build_daily_doc_title(
+        config["feishu"].get("title") or config["wechat"].get("title", "每日论文推送"),
+        generated_at=generated_at,
+    )
 
     print("Loading Zotero papers...")
     max_items = config["zotero"].get("max_items")
@@ -165,27 +97,68 @@ def main():
     matches = enrich_with_llm(ranked, scorer, config["query"])
     print(f"Enriched {len(matches)} matched papers.")
 
+    digest = generate_daily_digest(
+        title=daily_title,
+        query=config["arxiv"]["query"],
+        papers=matches,
+        output_root=config["output"].get("root_dir", "output/digests"),
+        include_figures=bool(config["output"].get("include_figures", True)),
+        figure_pages=int(config["output"].get("figure_pages", 3)),
+        generated_at=generated_at,
+    )
+    print(f"Markdown digest written to {digest.markdown_path}")
+
+    doc_url = ""
+    doc_publish_error = ""
+    if has_config_value(config.get("feishu", {}).get("app_id")) and has_config_value(
+        config.get("feishu", {}).get("app_secret")
+    ):
+        try:
+            print("Publishing digest to Feishu Docs...")
+            doc_client = FeishuDocsClient(
+                app_id=config["feishu"]["app_id"],
+                app_secret=config["feishu"]["app_secret"],
+                wiki_parent_url=config["feishu"].get("parent_url", ""),
+                update_parent_doc=bool(config["feishu"].get("update_parent_doc", True)),
+            )
+            document = doc_client.publish_digest(
+                title=daily_title,
+                query=config["arxiv"]["query"],
+                papers=digest.papers,
+                generated_at=generated_at,
+            )
+            doc_url = document.document_url
+            print(f"Feishu doc created: {doc_url}")
+        except Exception as exc:
+            doc_publish_error = str(exc)
+            print(f"Feishu doc publish failed; continuing without doc link. Error: {doc_publish_error}")
+
     # 根据配置选择发送到飞书或企业微信
-    if config.get("wechat", {}).get("webhook_url"):
+    if has_config_value(config.get("wechat", {}).get("webhook_url")):
         # 发送到企业微信（每条论文一条消息）
         post_papers_separately(
             webhook_url=config["wechat"]["webhook_url"],
             title=config["wechat"].get("title", "每日论文推送"),
-            papers=matches,
+            papers=digest.papers,
             delay_seconds=0.5,  # 每条消息间隔0.5秒，避免发送过快
         )
-    elif config.get("feishu", {}).get("webhook_url"):
+    elif has_config_value(config.get("feishu", {}).get("webhook_url")):
         # 发送到飞书
         payload = build_post_content(
-            title=config["feishu"]["title"],
+            title=daily_title,
             query=config["arxiv"]["query"],
-            papers=matches,
+            papers=digest.papers,
             header_template=config["feishu"].get("header_template", "turquoise"),
+            doc_url=doc_url,
         )
         post_to_feishu(config["feishu"]["webhook_url"], payload)
         print("Sent to Feishu webhook.")
+        if doc_publish_error and not doc_url:
+            print("Skipped Feishu doc link message because doc publish failed.")
+    elif doc_url:
+        print("Skipped chat notification; Feishu doc has been created.")
     else:
-        raise ValueError("未配置任何通知方式（飞书或企业微信）")
+        print("Skipped chat notification; markdown digest generated locally only.")
 
 
 if __name__ == "__main__":

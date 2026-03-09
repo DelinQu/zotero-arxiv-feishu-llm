@@ -9,6 +9,9 @@ jobs:
     timeout-minutes: 30
     env:
       FEISHU_WEBHOOK: ${{ secrets.FEISHU_TEST_WEBHOOK }}
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_PARENT_URL: ${{ secrets.FEISHU_PARENT_URL }}
       ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
       ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
       ZOTERO_LIBRARY_TYPE: ${{ secrets.ZOTERO_LIBRARY_TYPE }}
@@ -27,6 +30,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 

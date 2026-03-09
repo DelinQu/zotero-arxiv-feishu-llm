@@ -82,6 +82,7 @@ def build_post_content(
     query: str,
     papers: List[Dict[str, str]],
     header_template: str = "turquoise",
+    doc_url: str = "",
 ) -> Dict:
     
     total = len(papers)
@@ -94,7 +95,6 @@ def build_post_content(
             },
         }
     ]
-
     if total == 0:
         elements.append(
             {"tag": "div", "text": {"tag": "lark_md", "content": "未找到匹配的论文。"}}
@@ -104,6 +104,23 @@ def build_post_content(
         elements.append({"tag": "hr"})
         # 使用常规 div 以保持正常字号和颜色
         elements.append({"tag": "div", "text": {"tag": "lark_md", "content": remainder_md}})
+    if doc_url:
+        elements.extend(
+            [
+                {"tag": "hr"},
+                {
+                    "tag": "action",
+                    "actions": [
+                        {
+                            "tag": "button",
+                            "text": {"tag": "plain_text", "content": "打开完整日报"},
+                            "type": "primary",
+                            "url": doc_url,
+                        }
+                    ],
+                },
+            ]
+        )
 
     return {
         "msg_type": "interactive",
